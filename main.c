@@ -1,0 +1,102 @@
+//
+//  main.c
+//  Lab1
+//
+//  Created by Святослав Коротаев on 01/03/2020.
+//  Copyright © 2020 Святослав Коротаев. All rights reserved.
+//
+#include <stdlib.h>
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <semaphore.h>
+#define BufferSize 5
+
+pthread_t tid1, tid2;
+
+struct threadarg {
+    sem_t filled;
+    sem_t empty;
+    sem_t mutex;
+    int Buffer[BufferSize];
+};
+
+/*int generateNumber(){
+    int delayms = rand() / (float) RAND_MAX * 400.f + 200;
+    int result = rand() / (float) RAND_MAX * 20;
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = delayms * 1000000;
+    nanosleep(&ts, NULL);
+    return result;
+}*/
+
+
+void produce(){
+    struct threadarg targ;
+    sem_init(&targ.empty, 1, BufferSize);
+    sem_init(&targ.filled, 1, 0);
+    sem_init(&targ.mutex, 1, 1);
+    while (TRUE) {
+        int SleepInterval;
+        //int val = generateNumber();
+        int val = rand()% 10 + 1;
+        printf("Value: %d", val);
+        sem_wait(&targ.empty);
+        sem_wait(&targ.mutex);
+        if (targ.Buffer[BufferSize-1]!=0)
+            printf("Producer: %d | Value %d losted\n", val, targ.Buffer[BufferSize-1]);
+        else
+            printf("Producer: %d\n", val);
+        for (int i=BufferSize-2; i >= 0; i--)
+            targ.Buffer[i+1]=targ.Buffer[i];
+        targ.Buffer[0]=val;
+        sem_post(&targ.mutex);
+        sem_post(&targ.filled);
+        SleepInterval = (rand()%2000) + 2000;
+        sleep(SleepInterval);
+    }
+}
+
+void customer(){
+    int written = 0;
+    int val = 0;
+    struct threadarg targ;
+    sem_init(&targ.empty, 1, BufferSize);
+    sem_init(&targ.filled, 1, 0);
+    sem_init(&targ.mutex, 1, 1);
+    while(TRUE){
+        int SleepInterval;
+        sem_wait(&targ.filled);
+        sem_wait(&targ.mutex);
+        for (int i=BufferSize-1; i>=0; i--)
+            if (targ.Buffer[i]!=0)
+            {
+                written = i;
+                break;
+            }
+        val=targ.Buffer[written];
+        sleep(rand()%21);
+        targ.Buffer[written] = 0;
+        if (val==0)
+            printf("\t\t\t\tConsumer: %d | The value is wrong!\n", val);
+        else
+            printf("\t\t\t\tConsumer: %d\n", val);
+        sem_post(&targ.mutex);
+        sem_post(&targ.empty);
+        SleepInterval = (rand()%2000) + 2000;
+        sleep(SleepInterval);
+    }
+}
+
+int main(){
+    int prod;
+    int cust;
+    prod = pthread_create(&tid1, NULL, (void*)produce, NULL);
+    cust = pthread_create(&tid2, NULL, (void*)customer, NULL);
+    struct threadarg targ;
+    for (int i=0; i<BufferSize; i++) targ.Buffer[i]=0;
+    pthread_join(prod, NULL);
+    pthread_join(cust, NULL);
+    return 0;
+}
